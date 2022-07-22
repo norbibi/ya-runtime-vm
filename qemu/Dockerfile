@@ -14,27 +14,33 @@ RUN apt update \
 
 RUN git clone https://github.com/qemu/qemu.git -b v5.1.0 --recurse-submodules
 
-# --without-default-devices
+# --disable-slirp
 RUN mkdir build && \
   cd build && \
   /qemu/configure --target-list=x86_64-softmmu --static --audio-drv-list="" \
-  --disable-slirp --disable-tcg-interpreter --disable-containers --disable-gtk \
+  --disable-tcg-interpreter --disable-containers --disable-gtk \
   --disable-capstone --disable-avx2 --disable-avx512f --disable-replication \
   --disable-parallels --disable-sheepdog --disable-vvfat --disable-qed --disable-vdi \
   --disable-qcow1 --disable-dmg --disable-cloop --disable-bochs --disable-bzip2 \
   --disable-guest-agent --disable-numa --disable-tcg --disable-vnc \
-   --disable-live-block-migration --enable-virtfs --enable-vhost-vsock \
+  --disable-live-block-migration --enable-virtfs --enable-vhost-vsock \
   --without-default-devices
 RUN echo CONFIG_PARALLEL=y >> build/config-host.mak
 RUN echo CONFIG_VIRTIO=y >> build/config-host.mak
 RUN echo CONFIG_VIRTIO_SERIAL=y >> build/config-host.mak
 RUN echo CONFIG_VIRTIO_PCI=y >> build/config-host.mak
+RUN echo CONFIG_VIRTIO_NET=y >> build/config-host.mak
 RUN echo CONFIG_VIRTIO_RNG=y >> build/config-host.mak
 RUN echo CONFIG_VIRTIO_MMIO=y >> build/config-host.mak
 RUN echo CONFIG_VIRTIO_SCSI=y >> build/config-host.mak
 RUN echo CONFIG_VIRTIO_BLK=y >> build/config-host.mak
 RUN echo CONFIG_VIRTIO_9P=y >> build/config-host.mak
 RUN echo CONFIG_FSDEV_9P=y >> build/config-host.mak
+RUN echo CONFIG_VFIO=y >> build/config-host.mak
+RUN echo CONFIG_VFIO_PCI=y >> build/config-host.mak
+RUN echo CONFIG_EDID=y >> build/config-host.mak
+RUN echo CONFIG_VGA_PCI=y >> build/config-host.mak
+RUN echo CONFIG_PCIE_PORT=y >> build/config-host.mak
 
 RUN cd build && make x86_64-softmmu/all V=1 CFLAGS+="-Os -flto" -j4 LIBS+="-flto -lblkid -luuid -lpixman-1 -lutil"
 #RUN cd build && make x86_64-softmmu/all V=1 LIBS+="-flto -lblkid -luuid -lpixman-1 -lutil" CONFIG_PARALLEL=y CONFIG_VIRTIO_SERIAL=y
