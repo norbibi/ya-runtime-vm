@@ -23,6 +23,8 @@ use ya_runtime_sdk::{
 };
 use ya_runtime_vm::{
     cpu::CpuInfo,
+    gpu::GpuInfo,
+    ib::IBInfo,
     deploy::Deployment,
     guest_agent_comm::{GuestAgent, Notification, RedirectFdType, RemoteCommandResult},
 };
@@ -236,14 +238,10 @@ async fn start(
         "-m",
         format!("{}M", deployment.mem_mib).as_str(),
         "-nographic",
-        "-vga",
-        "none",
         "-kernel",
         FILE_VMLINUZ,
         "-initrd",
         FILE_INITRAMFS,
-        "-net",
-        "none",
         "-enable-kvm",
         "-cpu",
         "host",
@@ -271,6 +269,44 @@ async fn start(
         .as_str(),
         "-no-reboot",
     ]);
+
+    match std::env::var("GPU_PCI") {
+        Ok(val) => {
+            if val != "no" {
+                cmd.arg("-device");
+                cmd.arg(format!("vfio-pci,host={}", val).as_str());
+            }    
+        },
+        Err(_e) => {
+            cmd.arg("-vga");
+            cmd.arg("none");
+        }
+    }
+
+    match std::env::var("INTERNET_OUTBOUND") {
+        Ok(val) => {
+            if val == "yes" {
+                cmd.arg("-nic");
+                cmd.arg("user,model=virtio");
+            } 
+        },
+        Err(_e) => {
+            cmd.arg("-net");
+            cmd.arg("none");
+        }
+    }
+
+    match std::env::var("IB_PCI") {
+        Ok(val) => {
+            if val != "no" {
+                cmd.arg("-device");
+                cmd.arg("pcie-root-port,id=pci.1");
+                cmd.arg("-device");
+                cmd.arg(format!("vfio-pci,host={},bus=pci.1,rombar=0", val).as_str());
+            }
+        },
+        Err(_e) => {}
+    }
 
     for (idx, volume) in deployment.volumes.iter().enumerate() {
         cmd.arg("-virtfs");
@@ -392,11 +428,36 @@ async fn stop(runtime_data: Arc<Mutex<RuntimeData>>) -> Result<(), server::Error
 }
 
 fn offer() -> anyhow::Result<Option<serde_json::Value>> {
+    let gpu = GpuInfo::try_new()?;
+    let ib = IBInfo::try_new()?;
     let cpu = CpuInfo::try_new()?;
     let model = format!(
         "Stepping {} Family {} Model {}",
         cpu.model.stepping, cpu.model.family, cpu.model.model
     );
+
+    let mut capabilities = vec!["vpn"];
+    let cuda_cap;
+    let ib_cap;
+
+    if gpu.name != "None" {
+        cuda_cap = format!("cuda, {}", gpu.name);
+        capabilities.push(&cuda_cap);
+    }
+
+    if ib.id != "None" {
+        ib_cap = format!("ib, {}", ib.id);
+        capabilities.push(&ib_cap);
+    }
+
+    match std::env::var("INTERNET_OUTBOUND") {
+        Ok(val) => {
+            if val == "yes" {
+                capabilities.push("internet_outbound");
+            } 
+        },
+        Err(_e) => {}
+    }
 
     Ok(Some(serde_json::json!({
         "properties": {
@@ -404,7 +465,7 @@ fn offer() -> anyhow::Result<Option<serde_json::Value>> {
             "golem.inf.cpu.brand": cpu.model.brand,
             "golem.inf.cpu.model": model,
             "golem.inf.cpu.capabilities": cpu.capabilities,
-            "golem.runtime.capabilities": ["vpn"]
+            "golem.runtime.capabilities": capabilities
         },
         "constraints": ""
     })))
