@@ -46,6 +46,9 @@
 #define VPORT_CMD "/dev/vport0p1"
 #define VPORT_NET "/dev/vport0p2"
 
+#define VPORT_CMD_2 "/dev/vport1p1"
+#define VPORT_NET_2 "/dev/vport1p2"
+
 #define MODE_RW_UGO (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)
 #define OUTPUT_PATH_PREFIX "/var/tmp/guest_agent_private/fds"
 
@@ -1541,8 +1544,15 @@ int main(void) {
     load_module("/9pnet_virtio.ko");
     load_module("/9p.ko");
 
-    g_cmds_fd = CHECK(open(VPORT_CMD, O_RDWR | O_CLOEXEC));
-    g_net_fd = CHECK(open(VPORT_NET, O_RDWR | O_CLOEXEC));
+    if (access(VPORT_CMD, F_OK) == 0)
+        g_cmds_fd = CHECK(open(VPORT_CMD, O_RDWR | O_CLOEXEC));
+    else if (access(VPORT_CMD_2, F_OK) == 0)
+        g_cmds_fd = CHECK(open(VPORT_CMD_2, O_RDWR | O_CLOEXEC));    
+
+    if (access(VPORT_NET, F_OK) == 0)
+        g_net_fd = CHECK(open(VPORT_NET, O_RDWR | O_CLOEXEC));
+    else if (access(VPORT_NET_2, F_OK) == 0)
+        g_net_fd = CHECK(open(VPORT_NET_2, O_RDWR | O_CLOEXEC));
 
     CHECK(mkdir("/mnt", S_IRWXU));
     CHECK(mkdir("/mnt/image", S_IRWXU));
